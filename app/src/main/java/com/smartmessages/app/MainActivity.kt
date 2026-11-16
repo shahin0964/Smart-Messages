@@ -101,7 +101,16 @@ fun SmartMessagesAppNav(
                 },
                 onComposeNew = {
                     navController.navigate("new_message")
+                },
+                onOpenSettings = {
+                    navController.navigate("settings")
                 }
+            )
+        }
+
+        composable("settings") {
+            com.smartmessages.app.ui.screens.SettingsScreen(
+                onBack = { navController.popBackStack() }
             )
         }
 

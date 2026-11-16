@@ -20,9 +20,9 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
@@ -43,7 +43,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.smartmessages.app.data.repository.SmsRepository
+import com.smartmessages.app.ui.theme.BgLight
+import com.smartmessages.app.ui.theme.DividerColor
+import com.smartmessages.app.ui.theme.PurplePrimary
+import com.smartmessages.app.ui.theme.TextDark
+import com.smartmessages.app.ui.theme.TextMuted
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -63,22 +69,36 @@ fun NewMessageScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("New Conversation", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface
+            Column {
+                TopAppBar(
+                    title = {
+                        Text(
+                            text = "New Conversation",
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextDark
+                        )
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
+                                tint = TextDark
+                            )
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color.White
+                    )
                 )
-            )
+                HorizontalDivider(color = DividerColor, thickness = 0.8.dp)
+            }
         },
         bottomBar = {
             Surface(
-                color = MaterialTheme.colorScheme.surface,
-                tonalElevation = 4.dp,
+                color = Color.White,
+                shadowElevation = 6.dp,
                 modifier = Modifier
                     .fillMaxWidth()
                     .imePadding()
@@ -92,12 +112,12 @@ fun NewMessageScreen(
                     OutlinedTextField(
                         value = messageBody,
                         onValueChange = { messageBody = it },
-                        placeholder = { Text("Text message...") },
+                        placeholder = { Text("Text message...", color = TextMuted) },
                         maxLines = 4,
                         shape = RoundedCornerShape(24.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = MaterialTheme.colorScheme.primary,
-                            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+                            focusedBorderColor = PurplePrimary,
+                            unfocusedBorderColor = DividerColor
                         ),
                         modifier = Modifier.weight(1f)
                     )
@@ -124,14 +144,14 @@ fun NewMessageScreen(
                         modifier = Modifier
                             .size(48.dp)
                             .background(
-                                color = if (canSend) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                                color = if (canSend) PurplePrimary else Color(0xFFE2E8F0),
                                 shape = CircleShape
                             )
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.Send,
                             contentDescription = "Send",
-                            tint = if (canSend) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                            tint = if (canSend) Color.White else TextMuted
                         )
                     }
                 }
@@ -141,27 +161,33 @@ fun NewMessageScreen(
         Column(
             modifier = modifier
                 .fillMaxSize()
+                .background(BgLight)
                 .padding(paddingValues)
                 .padding(16.dp)
         ) {
             OutlinedTextField(
                 value = recipient,
                 onValueChange = { recipient = it },
-                label = { Text("To") },
-                placeholder = { Text("Type a name or phone number") },
+                label = { Text("To", color = PurplePrimary) },
+                placeholder = { Text("Type a name or phone number", color = TextMuted) },
                 singleLine = true,
                 leadingIcon = {
-                    Icon(Icons.Default.Person, contentDescription = null)
+                    Icon(Icons.Default.Person, contentDescription = null, tint = PurplePrimary)
                 },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = PurplePrimary,
+                    unfocusedBorderColor = DividerColor
+                ),
                 modifier = Modifier.fillMaxWidth()
             )
 
             Spacer(modifier = Modifier.height(16.dp))
             Text(
                 text = "Enter a phone number to start a new smart conversation.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                fontSize = 14.sp,
+                color = TextMuted
             )
         }
     }

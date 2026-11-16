@@ -19,15 +19,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
+import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Key
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
-import androidx.compose.material3.Badge
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -43,8 +40,14 @@ import com.smartmessages.app.data.model.Conversation
 import com.smartmessages.app.data.model.MessageCategory
 import com.smartmessages.app.ui.theme.OtpAmber
 import com.smartmessages.app.ui.theme.OtpAmberContainer
+import com.smartmessages.app.ui.theme.PurplePrimary
+import com.smartmessages.app.ui.theme.PurpleUltraLight
 import com.smartmessages.app.ui.theme.SpamRed
+import com.smartmessages.app.ui.theme.SpamRedContainer
+import com.smartmessages.app.ui.theme.TextDark
+import com.smartmessages.app.ui.theme.TextMuted
 import com.smartmessages.app.ui.theme.TransactionGreen
+import com.smartmessages.app.ui.theme.TransactionGreenContainer
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -61,16 +64,17 @@ fun ConversationItem(
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .background(Color.White)
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Avatar circle
-        val avatarBg = when (conversation.category) {
-            MessageCategory.OTP -> OtpAmber
-            MessageCategory.TRANSACTIONS -> TransactionGreen
-            MessageCategory.SPAM -> SpamRed
-            else -> MaterialTheme.colorScheme.primary
+        // Avatar circle styled like Smart Dialer's ContactAvatar
+        val (avatarBg, iconTint) = when (conversation.category) {
+            MessageCategory.OTP -> Pair(OtpAmberContainer, OtpAmber)
+            MessageCategory.TRANSACTIONS -> Pair(TransactionGreenContainer, TransactionGreen)
+            MessageCategory.SPAM -> Pair(SpamRedContainer, SpamRed)
+            else -> Pair(PurpleUltraLight, PurplePrimary)
         }
 
         Box(
@@ -84,21 +88,27 @@ fun ConversationItem(
                 MessageCategory.OTP -> Icon(
                     imageVector = Icons.Default.Key,
                     contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(24.dp)
+                    tint = iconTint,
+                    modifier = Modifier.size(22.dp)
                 )
                 MessageCategory.TRANSACTIONS -> Icon(
                     imageVector = Icons.Default.AccountBalance,
                     contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(24.dp)
+                    tint = iconTint,
+                    modifier = Modifier.size(22.dp)
+                )
+                MessageCategory.SPAM -> Icon(
+                    imageVector = Icons.Default.Block,
+                    contentDescription = null,
+                    tint = iconTint,
+                    modifier = Modifier.size(22.dp)
                 )
                 else -> {
                     val initial = displayName.firstOrNull()?.uppercaseChar()?.toString() ?: "#"
                     Text(
                         text = initial,
-                        color = Color.White,
-                        fontSize = 20.sp,
+                        color = iconTint,
+                        fontSize = 19.sp,
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -107,7 +117,7 @@ fun ConversationItem(
 
         Spacer(modifier = Modifier.width(14.dp))
 
-        // Center: Title, Snippet, OTP Chip
+        // Center: Title, Snippet, and OTP Chip
         Column(modifier = Modifier.weight(1f)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -115,8 +125,9 @@ fun ConversationItem(
             ) {
                 Text(
                     text = displayName,
-                    style = MaterialTheme.typography.titleMedium,
+                    fontSize = 16.sp,
                     fontWeight = if (conversation.unreadCount > 0) FontWeight.Bold else FontWeight.SemiBold,
+                    color = TextDark,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
@@ -124,8 +135,9 @@ fun ConversationItem(
 
                 Text(
                     text = formatMessageDate(conversation.date),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (conversation.unreadCount > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    fontSize = 12.sp,
+                    color = if (conversation.unreadCount > 0) PurplePrimary else TextMuted,
+                    fontWeight = if (conversation.unreadCount > 0) FontWeight.SemiBold else FontWeight.Normal
                 )
             }
 
@@ -133,8 +145,8 @@ fun ConversationItem(
 
             Text(
                 text = conversation.snippet,
-                style = MaterialTheme.typography.bodyMedium,
-                color = if (conversation.unreadCount > 0) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 14.sp,
+                color = if (conversation.unreadCount > 0) TextDark else TextMuted,
                 fontWeight = if (conversation.unreadCount > 0) FontWeight.Medium else FontWeight.Normal,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
@@ -142,7 +154,7 @@ fun ConversationItem(
 
             // One-Tap Copy OTP Chip
             if (conversation.latestOtp != null) {
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(6.dp))
                 AssistChip(
                     onClick = {
                         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
@@ -179,12 +191,15 @@ fun ConversationItem(
         // Unread Badge
         if (conversation.unreadCount > 0) {
             Spacer(modifier = Modifier.width(8.dp))
-            Badge(
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = Color.White
+            Box(
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .background(PurplePrimary)
+                    .padding(horizontal = 8.dp, vertical = 2.dp)
             ) {
                 Text(
                     text = conversation.unreadCount.toString(),
+                    color = Color.White,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold
                 )

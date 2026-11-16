@@ -8,32 +8,36 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 
 private val DarkColorScheme = darkColorScheme(
-    primary = PrimaryBlueDark,
-    secondary = SecondaryTeal,
-    background = BackgroundDark,
-    surface = SurfaceDark,
-    onPrimary = SurfaceLight,
-    onBackground = TextPrimaryDark,
-    onSurface = TextPrimaryDark
+    primary = PurpleLight,
+    secondary = PurplePrimary,
+    background = Color(0xFF0F172A),
+    surface = Color(0xFF1E293B),
+    onPrimary = Color.White,
+    onBackground = Color(0xFFF1F5F9),
+    onSurface = Color(0xFFF1F5F9)
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = PrimaryBlue,
-    secondary = SecondaryTeal,
-    background = BackgroundLight,
-    surface = SurfaceLight,
-    onPrimary = SurfaceLight,
-    onBackground = TextPrimaryLight,
-    onSurface = TextPrimaryLight
+    primary = PurplePrimary,
+    secondary = PurpleDark,
+    background = BgLight,
+    surface = BgCardWhite,
+    onPrimary = Color.White,
+    onBackground = TextDark,
+    onSurface = TextDark,
+    primaryContainer = PurpleUltraLight,
+    onPrimaryContainer = PurplePrimary,
+    outlineVariant = DividerColor
 )
 
 @Composable
 fun SmartMessagesTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = true,
+    dynamicColor: Boolean = false, // Keep consistent brand identity like Smart Dialer
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {

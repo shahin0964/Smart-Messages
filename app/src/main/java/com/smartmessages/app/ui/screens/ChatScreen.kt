@@ -8,6 +8,7 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -32,9 +33,9 @@ import androidx.compose.material.icons.filled.Key
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
@@ -51,6 +52,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -59,8 +61,14 @@ import androidx.compose.ui.unit.sp
 import com.smartmessages.app.data.model.Message
 import com.smartmessages.app.data.repository.SmsRepository
 import com.smartmessages.app.ui.components.MessageBubble
+import com.smartmessages.app.ui.theme.BgLight
+import com.smartmessages.app.ui.theme.DividerColor
 import com.smartmessages.app.ui.theme.OtpAmber
 import com.smartmessages.app.ui.theme.OtpAmberContainer
+import com.smartmessages.app.ui.theme.PurplePrimary
+import com.smartmessages.app.ui.theme.PurpleUltraLight
+import com.smartmessages.app.ui.theme.TextDark
+import com.smartmessages.app.ui.theme.TextMuted
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -84,7 +92,6 @@ fun ChatScreen(
 
     val listState = rememberLazyListState()
 
-    // Function to reload messages
     val reloadMessages: () -> Unit = {
         scope.launch {
             val list = repository.getMessagesForThread(threadId)
@@ -100,59 +107,86 @@ fun ChatScreen(
         reloadMessages()
     }
 
-    // Check if the latest message is an OTP
     val latestOtp = remember(messages) {
         messages.lastOrNull { it.isIncoming }?.otpCode
     }
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text(
-                            text = displayName,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1
-                        )
-                        if (contactName != null) {
-                            Text(
-                                text = address,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+            Column {
+                TopAppBar(
+                    title = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(CircleShape)
+                                    .background(PurpleUltraLight),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = displayName.firstOrNull()?.uppercaseChar()?.toString() ?: "#",
+                                    color = PurplePrimary,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = displayName,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextDark,
+                                    maxLines = 1
+                                )
+                                if (contactName != null) {
+                                    Text(
+                                        text = address,
+                                        fontSize = 12.sp,
+                                        color = TextMuted
+                                    )
+                                }
+                            }
+                        }
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
+                                tint = TextDark
                             )
                         }
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                actions = {
-                    // Call Button: Opens dialer to call this contact
-                    IconButton(onClick = {
-                        try {
-                            val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$address"))
-                            context.startActivity(intent)
-                        } catch (e: Exception) {
-                            e.printStackTrace()
+                    },
+                    actions = {
+                        IconButton(onClick = {
+                            try {
+                                val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$address"))
+                                context.startActivity(intent)
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                            }
+                        }) {
+                            Icon(
+                                imageVector = Icons.Default.Call,
+                                contentDescription = "Call Contact",
+                                tint = PurplePrimary,
+                                modifier = Modifier.size(24.dp)
+                            )
                         }
-                    }) {
-                        Icon(Icons.Default.Call, contentDescription = "Call Contact")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color.White
+                    )
                 )
-            )
+                HorizontalDivider(color = DividerColor, thickness = 0.8.dp)
+            }
         },
         bottomBar = {
-            // Message input composer
             Surface(
-                color = MaterialTheme.colorScheme.surface,
-                tonalElevation = 4.dp,
+                color = Color.White,
+                shadowElevation = 6.dp,
                 modifier = Modifier
                     .fillMaxWidth()
                     .imePadding()
@@ -166,18 +200,19 @@ fun ChatScreen(
                     OutlinedTextField(
                         value = inputText,
                         onValueChange = { inputText = it },
-                        placeholder = { Text("Text message...") },
+                        placeholder = { Text("Text message...", color = TextMuted) },
                         maxLines = 4,
                         shape = RoundedCornerShape(24.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = MaterialTheme.colorScheme.primary,
-                            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+                            focusedBorderColor = PurplePrimary,
+                            unfocusedBorderColor = DividerColor
                         ),
                         modifier = Modifier.weight(1f)
                     )
 
                     Spacer(modifier = Modifier.width(8.dp))
 
+                    val canSend = inputText.isNotBlank() && !isSending
                     IconButton(
                         onClick = {
                             val textToSend = inputText.trim()
@@ -195,18 +230,18 @@ fun ChatScreen(
                                 }
                             }
                         },
-                        enabled = inputText.isNotBlank() && !isSending,
+                        enabled = canSend,
                         modifier = Modifier
                             .size(48.dp)
                             .background(
-                                color = if (inputText.isNotBlank()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                                color = if (canSend) PurplePrimary else Color(0xFFE2E8F0),
                                 shape = CircleShape
                             )
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.Send,
                             contentDescription = "Send",
-                            tint = if (inputText.isNotBlank()) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                            tint = if (canSend) Color.White else TextMuted
                         )
                     }
                 }
@@ -216,6 +251,7 @@ fun ChatScreen(
         Column(
             modifier = modifier
                 .fillMaxSize()
+                .background(BgLight)
                 .padding(paddingValues)
         ) {
             // Sticky OTP Banner at top if conversation has active OTP

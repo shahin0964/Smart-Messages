@@ -1,6 +1,7 @@
 package com.smartmessages.app.ui.screens
 
 import android.app.Activity
+import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -19,27 +20,19 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Chat
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Sms
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Divider
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -50,25 +43,32 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.smartmessages.app.data.model.Conversation
 import com.smartmessages.app.data.model.MessageCategory
 import com.smartmessages.app.data.repository.SmsRepository
 import com.smartmessages.app.ui.components.ConversationItem
 import com.smartmessages.app.ui.components.SmartCategoryChips
+import com.smartmessages.app.ui.components.TopHeader
+import com.smartmessages.app.ui.theme.BgLight
+import com.smartmessages.app.ui.theme.DividerColor
+import com.smartmessages.app.ui.theme.PurplePrimary
+import com.smartmessages.app.ui.theme.PurpleUltraLight
+import com.smartmessages.app.ui.theme.TextDark
+import com.smartmessages.app.ui.theme.TextMuted
 import com.smartmessages.app.util.PermissionHelper
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ConversationListScreen(
     repository: SmsRepository,
     onOpenChat: (Long, String) -> Unit,
     onComposeNew: () -> Unit,
+    onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -113,57 +113,36 @@ fun ConversationListScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    if (isSearchActive) {
-                        OutlinedTextField(
-                            value = searchQuery,
-                            onValueChange = { searchQuery = it },
-                            placeholder = { Text("Search messages...") },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth(),
-                            trailingIcon = {
-                                if (searchQuery.isNotEmpty()) {
-                                    IconButton(onClick = { searchQuery = "" }) {
-                                        Icon(Icons.Default.Close, contentDescription = "Clear")
-                                    }
-                                }
+            TopHeader(
+                searchQuery = searchQuery,
+                onSearchQueryChange = { searchQuery = it },
+                isSearchActive = isSearchActive,
+                onToggleSearch = {
+                    isSearchActive = !isSearchActive
+                    if (!isSearchActive) searchQuery = ""
+                },
+                onSettingsClick = onOpenSettings,
+                onMarkAllAsReadClick = {
+                    scope.launch {
+                        conversations.forEach { conv ->
+                            if (conv.unreadCount > 0) {
+                                repository.markThreadAsRead(conv.threadId)
                             }
-                        )
-                    } else {
-                        Text(
-                            text = "Smart Messages",
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontSize = 22.sp
-                        )
+                        }
+                        Toast.makeText(context, "All messages marked as read", Toast.LENGTH_SHORT).show()
                     }
                 },
-                actions = {
-                    IconButton(onClick = {
-                        isSearchActive = !isSearchActive
-                        if (!isSearchActive) searchQuery = ""
-                    }) {
-                        Icon(
-                            imageVector = if (isSearchActive) Icons.Default.Close else Icons.Default.Search,
-                            contentDescription = "Search"
-                        )
-                    }
-                    IconButton(onClick = {
-                        scope.launch { repository.loadConversations() }
-                    }) {
-                        Icon(imageVector = Icons.Default.Refresh, contentDescription = "Refresh")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
-                )
+                onSpamClick = {
+                    selectedCategory = MessageCategory.SPAM
+                }
             )
         },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = onComposeNew,
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = Color.White
+                containerColor = PurplePrimary,
+                contentColor = Color.White,
+                shape = RoundedCornerShape(16.dp)
             ) {
                 Icon(imageVector = Icons.Default.Edit, contentDescription = "Start Chat")
             }
@@ -172,50 +151,66 @@ fun ConversationListScreen(
         Column(
             modifier = modifier
                 .fillMaxSize()
+                .background(BgLight)
                 .padding(paddingValues)
         ) {
             // Default SMS App Warning Banner if not set as default
             AnimatedVisibility(visible = !isDefaultSms) {
-                Surface(
-                    color = MaterialTheme.colorScheme.secondaryContainer,
-                    shape = RoundedCornerShape(12.dp),
+                Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 6.dp)
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = PurpleUltraLight)
                 ) {
-                    Row(
-                        modifier = Modifier.padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Shield,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(28.dp)
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Set as Default SMS app",
-                                fontWeight = FontWeight.Bold,
-                                style = MaterialTheme.typography.titleMedium
-                            )
-                            Text(
-                                text = "Enable smart OTP extraction and spam protection",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer
-                            )
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(PurplePrimary),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Sms,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Set as Default SMS App",
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextDark
+                                )
+                                Text(
+                                    text = "Enable smart OTP extraction and spam protection",
+                                    fontSize = 12.sp,
+                                    color = TextMuted
+                                )
+                            }
                         }
-                        Spacer(modifier = Modifier.width(8.dp))
+
+                        Spacer(modifier = Modifier.height(10.dp))
                         Button(
                             onClick = {
                                 (context as? Activity)?.let {
                                     PermissionHelper.requestDefaultSmsApp(it)
+                                    isDefaultSms = PermissionHelper.isDefaultSmsApp(context)
                                 }
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                            colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("Set", fontWeight = FontWeight.Bold)
+                            Text("Set as Default", fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -228,9 +223,7 @@ fun ConversationListScreen(
                 onSelectCategory = { selectedCategory = it }
             )
 
-            HorizontalDivider(
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-            )
+            HorizontalDivider(color = DividerColor, thickness = 0.8.dp)
 
             // Conversation List or Loading / Empty States
             if (isLoading && conversations.isEmpty()) {
@@ -238,7 +231,7 @@ fun ConversationListScreen(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-                    CircularProgressIndicator()
+                    CircularProgressIndicator(color = PurplePrimary)
                 }
             } else if (filteredList.isEmpty()) {
                 Box(
@@ -253,14 +246,15 @@ fun ConversationListScreen(
                         Icon(
                             imageVector = Icons.Default.Chat,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                            tint = Color(0xFFCBD5E1),
                             modifier = Modifier.size(64.dp)
                         )
                         Spacer(modifier = Modifier.height(12.dp))
                         Text(
                             text = if (searchQuery.isNotEmpty()) "No messages found" else "No conversations in ${selectedCategory.displayName}",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = TextMuted
                         )
                     }
                 }
@@ -274,7 +268,8 @@ fun ConversationListScreen(
                             }
                         )
                         HorizontalDivider(
-                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f),
+                            color = DividerColor,
+                            thickness = 0.6.dp,
                             modifier = Modifier.padding(start = 78.dp)
                         )
                     }
