@@ -40,8 +40,8 @@ object SmsBackupManager {
                         put("address", msg.address)
                         put("body", msg.body)
                         put("date", msg.date)
-                        put("type", msg.type)
-                        put("read", msg.read)
+                        put("isIncoming", msg.isIncoming)
+                        put("isRead", msg.isRead)
                         put("status", msg.status)
                     }
                     messageArray.put(obj)
@@ -100,8 +100,8 @@ object SmsBackupManager {
                         address = obj.optString("address"),
                         body = obj.optString("body"),
                         date = obj.optLong("date", System.currentTimeMillis()),
-                        type = obj.optInt("type", 1),
-                        read = obj.optBoolean("read", true),
+                        isIncoming = obj.optBoolean("isIncoming", true),
+                        isRead = obj.optBoolean("isRead", true),
                         status = obj.optInt("status", -1)
                     )
                 )

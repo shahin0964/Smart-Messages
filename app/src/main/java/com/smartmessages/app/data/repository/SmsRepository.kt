@@ -432,7 +432,8 @@ class SmsRepository(private val context: Context) {
                     val body = it.getString(bodyCol) ?: ""
                     val date = it.getLong(dateCol)
                     val type = it.getInt(typeCol)
-                    val read = it.getInt(readCol) == 1
+                    val isIncoming = (type == Telephony.Sms.MESSAGE_TYPE_INBOX)
+                    val isRead = (it.getInt(readCol) == 1)
                     val status = it.getInt(statusCol)
 
                     messages.add(
@@ -442,8 +443,8 @@ class SmsRepository(private val context: Context) {
                             address = address,
                             body = body,
                             date = date,
-                            type = type,
-                            read = read,
+                            isIncoming = isIncoming,
+                            isRead = isRead,
                             status = status,
                             otpCode = OtpExtractor.extractOtp(body)
                         )
@@ -467,8 +468,8 @@ class SmsRepository(private val context: Context) {
                     put(Telephony.Sms.ADDRESS, msg.address)
                     put(Telephony.Sms.BODY, msg.body)
                     put(Telephony.Sms.DATE, msg.date)
-                    put(Telephony.Sms.READ, if (msg.read) 1 else 0)
-                    put(Telephony.Sms.TYPE, msg.type)
+                    put(Telephony.Sms.READ, if (msg.isRead) 1 else 0)
+                    put(Telephony.Sms.TYPE, if (msg.isIncoming) Telephony.Sms.MESSAGE_TYPE_INBOX else Telephony.Sms.MESSAGE_TYPE_SENT)
                 }
                 val uri = context.contentResolver.insert(Telephony.Sms.CONTENT_URI, values)
                 if (uri != null) {
