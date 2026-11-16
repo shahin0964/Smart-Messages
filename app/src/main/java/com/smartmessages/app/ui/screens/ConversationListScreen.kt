@@ -123,13 +123,20 @@ fun ConversationListScreen(
                 },
                 onSettingsClick = onOpenSettings,
                 onMarkAllAsReadClick = {
-                    scope.launch {
-                        conversations.forEach { conv ->
-                            if (conv.unreadCount > 0) {
-                                repository.markThreadAsRead(conv.threadId)
+                    if (!PermissionHelper.isDefaultSmsApp(context)) {
+                        Toast.makeText(context, "Set Smart Messages as default SMS app to mark all as read", Toast.LENGTH_LONG).show()
+                        (context as? Activity)?.let {
+                            PermissionHelper.requestDefaultSmsApp(it)
+                        }
+                    } else {
+                        scope.launch {
+                            val success = repository.markAllAsRead()
+                            if (success) {
+                                Toast.makeText(context, "All messages marked as read", Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(context, "Failed to mark messages as read", Toast.LENGTH_SHORT).show()
                             }
                         }
-                        Toast.makeText(context, "All messages marked as read", Toast.LENGTH_SHORT).show()
                     }
                 },
                 onSpamClick = {

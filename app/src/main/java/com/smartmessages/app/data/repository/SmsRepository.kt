@@ -290,9 +290,10 @@ class SmsRepository(private val context: Context) {
         try {
             val values = ContentValues().apply {
                 put(Telephony.Sms.READ, 1)
+                put(Telephony.Sms.SEEN, 1)
             }
             context.contentResolver.update(
-                Telephony.Sms.Inbox.CONTENT_URI,
+                Telephony.Sms.CONTENT_URI,
                 values,
                 "${Telephony.Sms.THREAD_ID} = ? AND ${Telephony.Sms.READ} = 0",
                 arrayOf(threadId.toString())
@@ -300,6 +301,29 @@ class SmsRepository(private val context: Context) {
             loadConversations()
         } catch (e: Exception) {
             e.printStackTrace()
+        }
+    }
+
+    /**
+     * Marks all unread messages across all threads as read.
+     */
+    suspend fun markAllAsRead(): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val values = ContentValues().apply {
+                put(Telephony.Sms.READ, 1)
+                put(Telephony.Sms.SEEN, 1)
+            }
+            val updated = context.contentResolver.update(
+                Telephony.Sms.CONTENT_URI,
+                values,
+                "${Telephony.Sms.READ} = 0",
+                null
+            )
+            loadConversations()
+            updated >= 0
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
         }
     }
 
