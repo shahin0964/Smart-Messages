@@ -45,6 +45,7 @@ fun SmartCategoryChips(
     selectedCategory: MessageCategory,
     categoryCounts: Map<MessageCategory, Int>,
     onSelectCategory: (MessageCategory) -> Unit,
+    visibleCategories: List<MessageCategory> = MessageCategory.values().toList(),
     modifier: Modifier = Modifier
 ) {
     val scrollState = rememberScrollState()
@@ -57,7 +58,7 @@ fun SmartCategoryChips(
             .padding(horizontal = 16.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        MessageCategory.values().forEach { category ->
+        visibleCategories.forEach { category ->
             val isSelected = (selectedCategory == category)
             val count = categoryCounts[category] ?: 0
 

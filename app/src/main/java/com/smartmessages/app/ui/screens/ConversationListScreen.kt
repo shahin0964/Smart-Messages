@@ -3,6 +3,7 @@ package com.smartmessages.app.ui.screens
 import android.app.Activity
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
+import com.smartmessages.app.data.repository.AppSettingsPreferences
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -77,15 +78,33 @@ fun ConversationListScreen(
     val conversations by repository.conversations.collectAsState()
     val isLoading by repository.isLoading.collectAsState()
 
+    val preferences = remember { AppSettingsPreferences(context) }
     var selectedCategory by remember { mutableStateOf(MessageCategory.ALL) }
     var searchQuery by remember { mutableStateOf("") }
     var isSearchActive by remember { mutableStateOf(false) }
 
     var isDefaultSms by remember { mutableStateOf(PermissionHelper.isDefaultSmsApp(context)) }
 
+    val visibleCategories = remember(preferences) {
+        if (!preferences.smartCategorizationEnabled) {
+            listOf(MessageCategory.ALL)
+        } else {
+            buildList {
+                add(MessageCategory.ALL)
+                if (preferences.showPersonalCategory) add(MessageCategory.PERSONAL)
+                if (preferences.showOtpCategory) add(MessageCategory.OTP)
+                if (preferences.showTransactionsCategory) add(MessageCategory.TRANSACTIONS)
+                if (preferences.showSpamCategory) add(MessageCategory.SPAM)
+            }
+        }
+    }
+
     LaunchedEffect(Unit) {
         if (PermissionHelper.hasRequiredPermissions(context)) {
             repository.loadConversations()
+            if (preferences.autoDeleteExpiredOtp && PermissionHelper.isDefaultSmsApp(context)) {
+                repository.deleteExpiredOtps(24)
+            }
         }
         isDefaultSms = PermissionHelper.isDefaultSmsApp(context)
     }
@@ -227,6 +246,7 @@ fun ConversationListScreen(
             SmartCategoryChips(
                 selectedCategory = selectedCategory,
                 categoryCounts = categoryCounts,
+                visibleCategories = visibleCategories,
                 onSelectCategory = { selectedCategory = it }
             )
 

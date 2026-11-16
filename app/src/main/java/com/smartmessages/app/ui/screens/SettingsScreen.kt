@@ -38,7 +38,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -50,6 +49,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -60,6 +60,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.smartmessages.app.data.repository.AppSettingsPreferences
+import com.smartmessages.app.data.repository.OtaUpdateManager
+import com.smartmessages.app.data.repository.SmsRepository
+import com.smartmessages.app.ui.dialogs.AboutAppDialog
+import com.smartmessages.app.ui.dialogs.BackupRestoreDialog
+import com.smartmessages.app.ui.dialogs.BlockedManagerDialog
+import com.smartmessages.app.ui.dialogs.CheckUpdateDialog
+import com.smartmessages.app.ui.dialogs.SmartCategorizationDialog
 import com.smartmessages.app.ui.theme.BgLight
 import com.smartmessages.app.ui.theme.PurplePrimary
 import com.smartmessages.app.ui.theme.PurpleUltraLight
@@ -68,21 +76,35 @@ import com.smartmessages.app.ui.theme.TextLightGray
 import com.smartmessages.app.ui.theme.TextMuted
 import com.smartmessages.app.ui.theme.TransactionGreen
 import com.smartmessages.app.util.PermissionHelper
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
+    repository: SmsRepository,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val preferences = remember { AppSettingsPreferences(context) }
+
     var isDefaultSms by remember { mutableStateOf(PermissionHelper.isDefaultSmsApp(context)) }
 
-    // Toggle States
-    var autoCopyOtp by remember { mutableStateOf(true) }
-    var priorityOtpNotifs by remember { mutableStateOf(true) }
-    var spamProtectionEnabled by remember { mutableStateOf(true) }
-    var autoDeleteExpiredOtp by remember { mutableStateOf(false) }
+    // Toggle States backed by SharedPreferences
+    var autoCopyOtp by remember { mutableStateOf(preferences.autoCopyOtp) }
+    var priorityOtpNotifs by remember { mutableStateOf(preferences.priorityOtpAlerts) }
+    var spamProtectionEnabled by remember { mutableStateOf(preferences.scamShieldEnabled) }
+    var autoDeleteExpiredOtp by remember { mutableStateOf(preferences.autoDeleteExpiredOtp) }
+
+    // Dialog Visibility States
+    var showCategorizationDialog by remember { mutableStateOf(false) }
+    var showBlockedDialog by remember { mutableStateOf(false) }
+    var showBackupDialog by remember { mutableStateOf(false) }
+    var showUpdateDialog by remember { mutableStateOf(false) }
+    var showAboutDialog by remember { mutableStateOf(false) }
+
+    val currentVersion = remember { OtaUpdateManager.getCurrentVersion(context) }
 
     LaunchedEffect(Unit) {
         isDefaultSms = PermissionHelper.isDefaultSmsApp(context)
@@ -122,7 +144,7 @@ fun SettingsScreen(
                 .padding(paddingValues)
                 .padding(16.dp)
         ) {
-            // Default SMS App Card (Identical to Smart Dialer's Default App card)
+            // Default SMS App Card
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -195,7 +217,10 @@ fun SettingsScreen(
                 title = "One-Tap Copy OTP",
                 subtitle = "Detect and copy verification codes with one tap",
                 checked = autoCopyOtp,
-                onCheckedChange = { autoCopyOtp = it }
+                onCheckedChange = {
+                    autoCopyOtp = it
+                    preferences.autoCopyOtp = it
+                }
             )
 
             SettingsSwitchItem(
@@ -203,7 +228,10 @@ fun SettingsScreen(
                 title = "Priority OTP Alerts",
                 subtitle = "High-priority heads-up banner with copy action",
                 checked = priorityOtpNotifs,
-                onCheckedChange = { priorityOtpNotifs = it }
+                onCheckedChange = {
+                    priorityOtpNotifs = it
+                    preferences.priorityOtpAlerts = it
+                }
             )
 
             SettingsOptionItem(
@@ -211,7 +239,7 @@ fun SettingsScreen(
                 title = "Smart Categorization",
                 subtitle = "Personal, OTPs, Transactions and Spam tabs",
                 onClick = {
-                    Toast.makeText(context, "Smart Categorization is active by default", Toast.LENGTH_SHORT).show()
+                    showCategorizationDialog = true
                 }
             )
 
@@ -225,7 +253,16 @@ fun SettingsScreen(
                 title = "Scam & Phishing Shield",
                 subtitle = "Filter fraudulent messages and suspicious web links",
                 checked = spamProtectionEnabled,
-                onCheckedChange = { spamProtectionEnabled = it }
+                onCheckedChange = {
+                    spamProtectionEnabled = it
+                    preferences.scamShieldEnabled = it
+                    Toast.makeText(
+                        context,
+                        if (it) "Scam & Phishing Shield enabled" else "Scam Shield disabled",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    scope.launch { repository.loadConversations() }
+                }
             )
 
             SettingsOptionItem(
@@ -233,7 +270,7 @@ fun SettingsScreen(
                 title = "Blocked Numbers & Keywords",
                 subtitle = "Manage blocked senders and custom filters",
                 onClick = {
-                    Toast.makeText(context, "Manage blocked numbers in Spam tab", Toast.LENGTH_SHORT).show()
+                    showBlockedDialog = true
                 }
             )
 
@@ -247,7 +284,20 @@ fun SettingsScreen(
                 title = "Auto-Delete Expired OTPs",
                 subtitle = "Automatically clean up old verification codes after 24h",
                 checked = autoDeleteExpiredOtp,
-                onCheckedChange = { autoDeleteExpiredOtp = it }
+                onCheckedChange = {
+                    autoDeleteExpiredOtp = it
+                    preferences.autoDeleteExpiredOtp = it
+                    if (it) {
+                        scope.launch {
+                            val deleted = repository.deleteExpiredOtps(24)
+                            Toast.makeText(
+                                context,
+                                if (deleted > 0) "$deleted expired OTP messages deleted" else "No expired OTPs older than 24h found",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    }
+                }
             )
 
             SettingsOptionItem(
@@ -255,7 +305,7 @@ fun SettingsScreen(
                 title = "Backup & Restore Messages",
                 subtitle = "Export or restore messages to local JSON/XML file",
                 onClick = {
-                    Toast.makeText(context, "Local message backup feature ready", Toast.LENGTH_SHORT).show()
+                    showBackupDialog = true
                 }
             )
 
@@ -267,9 +317,9 @@ fun SettingsScreen(
             SettingsOptionItem(
                 icon = Icons.Default.SystemUpdate,
                 title = "Check for Updates",
-                subtitle = "Current Version: v1.0.1",
+                subtitle = "Current Version: v$currentVersion",
                 onClick = {
-                    Toast.makeText(context, "Smart Messages is up to date (v1.0.1)", Toast.LENGTH_SHORT).show()
+                    showUpdateDialog = true
                 }
             )
 
@@ -278,10 +328,51 @@ fun SettingsScreen(
                 title = "About Smart Messages",
                 subtitle = "Private, modern, open-source Android messaging app",
                 onClick = {
-                    Toast.makeText(context, "Smart Messages • Developed with Jetpack Compose & Material 3", Toast.LENGTH_LONG).show()
+                    showAboutDialog = true
                 }
             )
         }
+    }
+
+    // Interactive Dialogs
+    if (showCategorizationDialog) {
+        SmartCategorizationDialog(
+            preferences = preferences,
+            onDismiss = { showCategorizationDialog = false },
+            onApplied = {
+                scope.launch { repository.loadConversations() }
+                Toast.makeText(context, "Categorization settings applied", Toast.LENGTH_SHORT).show()
+            }
+        )
+    }
+
+    if (showBlockedDialog) {
+        BlockedManagerDialog(
+            preferences = preferences,
+            onDismiss = {
+                showBlockedDialog = false
+                scope.launch { repository.loadConversations() }
+            }
+        )
+    }
+
+    if (showBackupDialog) {
+        BackupRestoreDialog(
+            repository = repository,
+            onDismiss = { showBackupDialog = false }
+        )
+    }
+
+    if (showUpdateDialog) {
+        CheckUpdateDialog(
+            onDismiss = { showUpdateDialog = false }
+        )
+    }
+
+    if (showAboutDialog) {
+        AboutAppDialog(
+            onDismiss = { showAboutDialog = false }
+        )
     }
 }
 
@@ -307,7 +398,7 @@ private fun SettingsOptionItem(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
-            .clickable { onClick() },
+            .clickable(onClick = onClick),
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
@@ -346,7 +437,6 @@ private fun SettingsOptionItem(
                         fontWeight = FontWeight.SemiBold,
                         color = TextDark
                     )
-                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = subtitle,
                         fontSize = 12.sp,
@@ -415,7 +505,6 @@ private fun SettingsSwitchItem(
                         fontWeight = FontWeight.SemiBold,
                         color = TextDark
                     )
-                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = subtitle,
                         fontSize = 12.sp,

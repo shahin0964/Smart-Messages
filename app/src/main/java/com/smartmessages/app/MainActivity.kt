@@ -108,6 +108,7 @@ fun SmartMessagesAppNav(
 
         composable("settings") {
             com.smartmessages.app.ui.screens.SettingsScreen(
+                repository = repository,
                 onBack = { navController.popBackStack() }
             )
         }

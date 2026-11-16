@@ -5,6 +5,7 @@ import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.provider.Telephony
+import com.smartmessages.app.data.repository.AppSettingsPreferences
 import com.smartmessages.app.util.NotificationHelper
 import com.smartmessages.app.util.OtpExtractor
 
@@ -30,6 +31,8 @@ class SmsReceiver : BroadcastReceiver() {
         }
         val fullBody = bodyBuilder.toString()
 
+        val preferences = AppSettingsPreferences(context)
+
         // If this app is the Default SMS app, write the received SMS into Telephony.Sms.Inbox
         val defaultSmsPackage = Telephony.Sms.getDefaultSmsPackage(context)
         val isDefaultApp = (context.packageName == defaultSmsPackage)
@@ -47,6 +50,13 @@ class SmsReceiver : BroadcastReceiver() {
             } catch (e: Exception) {
                 e.printStackTrace()
             }
+        }
+
+        // Check if sender or keyword is blocked
+        val isBlocked = preferences.isNumberBlocked(address) || preferences.containsBlockedKeyword(fullBody)
+        if (isBlocked) {
+            // Suppress notification for blocked numbers / keywords
+            return
         }
 
         // Detect OTP

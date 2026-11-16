@@ -62,7 +62,8 @@ class SmsRepository(private val context: Context) {
                     val (address, date, unread) = getThreadDetails(threadId)
                     if (address.isNotBlank()) {
                         val contactName = getContactName(address)
-                        val category = CategoryClassifier.classify(address, snippet)
+                        val preferences = AppSettingsPreferences(context)
+                        val category = CategoryClassifier.classify(address, snippet, preferences)
                         val latestOtp = OtpExtractor.extractOtp(snippet)
 
                         result.add(
@@ -343,5 +344,141 @@ class SmsRepository(private val context: Context) {
             e.printStackTrace()
             false
         }
+    }
+
+    /**
+     * Deletes OTP messages older than specified hours (default 24h).
+     */
+    suspend fun deleteExpiredOtps(olderThanHours: Int = 24): Int = withContext(Dispatchers.IO) {
+        var count = 0
+        try {
+            val cutoff = System.currentTimeMillis() - (olderThanHours * 60 * 60 * 1000L)
+            val projection = arrayOf(
+                Telephony.Sms._ID,
+                Telephony.Sms.BODY,
+                Telephony.Sms.DATE
+            )
+            val cursor = context.contentResolver.query(
+                Telephony.Sms.CONTENT_URI,
+                projection,
+                "${Telephony.Sms.DATE} < ?",
+                arrayOf(cutoff.toString()),
+                null
+            )
+            val idsToDelete = mutableListOf<Long>()
+            cursor?.use {
+                val idCol = it.getColumnIndex(Telephony.Sms._ID)
+                val bodyCol = it.getColumnIndex(Telephony.Sms.BODY)
+                while (it.moveToNext()) {
+                    val body = it.getString(bodyCol) ?: ""
+                    if (OtpExtractor.extractOtp(body) != null) {
+                        idsToDelete.add(it.getLong(idCol))
+                    }
+                }
+            }
+
+            if (idsToDelete.isNotEmpty()) {
+                val inClause = idsToDelete.joinToString(",")
+                count = context.contentResolver.delete(
+                    Telephony.Sms.CONTENT_URI,
+                    "${Telephony.Sms._ID} IN ($inClause)",
+                    null
+                )
+                loadConversations()
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        count
+    }
+
+    /**
+     * Loads all SMS messages across all threads for backup export.
+     */
+    suspend fun getAllMessagesForBackup(): List<Message> = withContext(Dispatchers.IO) {
+        val messages = mutableListOf<Message>()
+        val projection = arrayOf(
+            Telephony.Sms._ID,
+            Telephony.Sms.THREAD_ID,
+            Telephony.Sms.ADDRESS,
+            Telephony.Sms.BODY,
+            Telephony.Sms.DATE,
+            Telephony.Sms.TYPE,
+            Telephony.Sms.READ,
+            Telephony.Sms.STATUS
+        )
+        try {
+            val cursor = context.contentResolver.query(
+                Telephony.Sms.CONTENT_URI,
+                projection,
+                null,
+                null,
+                "${Telephony.Sms.DATE} DESC"
+            )
+            cursor?.use {
+                val idCol = it.getColumnIndex(Telephony.Sms._ID)
+                val threadIdCol = it.getColumnIndex(Telephony.Sms.THREAD_ID)
+                val addressCol = it.getColumnIndex(Telephony.Sms.ADDRESS)
+                val bodyCol = it.getColumnIndex(Telephony.Sms.BODY)
+                val dateCol = it.getColumnIndex(Telephony.Sms.DATE)
+                val typeCol = it.getColumnIndex(Telephony.Sms.TYPE)
+                val readCol = it.getColumnIndex(Telephony.Sms.READ)
+                val statusCol = it.getColumnIndex(Telephony.Sms.STATUS)
+
+                while (it.moveToNext()) {
+                    val id = it.getLong(idCol)
+                    val threadId = it.getLong(threadIdCol)
+                    val address = it.getString(addressCol) ?: ""
+                    val body = it.getString(bodyCol) ?: ""
+                    val date = it.getLong(dateCol)
+                    val type = it.getInt(typeCol)
+                    val read = it.getInt(readCol) == 1
+                    val status = it.getInt(statusCol)
+
+                    messages.add(
+                        Message(
+                            id = id,
+                            threadId = threadId,
+                            address = address,
+                            body = body,
+                            date = date,
+                            type = type,
+                            read = read,
+                            status = status,
+                            otpCode = OtpExtractor.extractOtp(body)
+                        )
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        messages
+    }
+
+    /**
+     * Restores a list of messages into Android's SMS database.
+     */
+    suspend fun restoreMessages(messages: List<Message>): Int = withContext(Dispatchers.IO) {
+        var restoredCount = 0
+        try {
+            for (msg in messages) {
+                val values = ContentValues().apply {
+                    put(Telephony.Sms.ADDRESS, msg.address)
+                    put(Telephony.Sms.BODY, msg.body)
+                    put(Telephony.Sms.DATE, msg.date)
+                    put(Telephony.Sms.READ, if (msg.read) 1 else 0)
+                    put(Telephony.Sms.TYPE, msg.type)
+                }
+                val uri = context.contentResolver.insert(Telephony.Sms.CONTENT_URI, values)
+                if (uri != null) {
+                    restoredCount++
+                }
+            }
+            loadConversations()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        restoredCount
     }
 }
