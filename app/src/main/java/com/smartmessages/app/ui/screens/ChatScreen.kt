@@ -4,7 +4,10 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.database.ContentObserver
 import android.net.Uri
+import android.os.Handler
+import android.os.Looper
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
@@ -23,6 +26,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -46,6 +50,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -65,6 +70,7 @@ import com.smartmessages.app.data.repository.AppSettingsPreferences
 import com.smartmessages.app.data.repository.SimRepository
 import com.smartmessages.app.data.repository.SmsRepository
 import com.smartmessages.app.ui.components.MessageBubble
+import com.smartmessages.app.util.SmsEvents
 import com.smartmessages.app.ui.theme.BgLight
 import com.smartmessages.app.ui.theme.DividerColor
 import com.smartmessages.app.ui.theme.OtpAmber
@@ -112,17 +118,67 @@ fun ChatScreen(
 
     val reloadMessages: () -> Unit = {
         scope.launch {
-            val list = repository.getMessagesForThread(threadId)
-            messages = list
-            repository.markThreadAsRead(threadId)
-            if (list.isNotEmpty()) {
-                listState.scrollToItem(list.size - 1)
+            try {
+                var list = if (threadId > 0) repository.getMessagesForThread(threadId) else emptyList()
+                if (list.isEmpty() && address.isNotBlank()) {
+                    list = repository.getMessagesByAddress(address)
+                }
+                messages = list
+                if (threadId > 0) {
+                    repository.markThreadAsRead(threadId)
+                }
+                if (list.isNotEmpty()) {
+                    try {
+                        listState.scrollToItem(list.size - 1)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
         }
     }
 
     LaunchedEffect(threadId) {
         reloadMessages()
+    }
+
+    // Real-time listener for incoming SMS from this sender or thread
+    LaunchedEffect(threadId, address) {
+        SmsEvents.newSmsFlow.collect { event ->
+            val cleanIncoming = event.address.replace(Regex("[^0-9+]"), "")
+            val cleanCurrent = address.replace(Regex("[^0-9+]"), "")
+            if (cleanIncoming.endsWith(cleanCurrent) || cleanCurrent.endsWith(cleanIncoming) ||
+                event.address.equals(address, ignoreCase = true)) {
+                reloadMessages()
+            }
+        }
+    }
+
+    // Live ContentObserver on Telephony.Sms so external/system inserts refresh chat immediately
+    DisposableEffect(threadId) {
+        val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
+            override fun onChange(selfChange: Boolean, uri: Uri?) {
+                reloadMessages()
+            }
+        }
+        try {
+            context.contentResolver.registerContentObserver(
+                Telephony.Sms.CONTENT_URI,
+                true,
+                observer
+            )
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        onDispose {
+            try {
+                context.contentResolver.unregisterContentObserver(observer)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
     }
 
     val latestOtp = remember(messages) {
@@ -414,7 +470,10 @@ fun ChatScreen(
                     .fillMaxSize()
                     .padding(vertical = 8.dp)
             ) {
-                items(messages, key = { it.id }) { message ->
+                itemsIndexed(
+                    items = messages,
+                    key = { index, message -> "${message.id}_${message.date}_$index" }
+                ) { _, message ->
                     MessageBubble(
                         message = message,
                         fontSizeSp = fontSizeSp

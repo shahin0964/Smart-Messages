@@ -74,16 +74,30 @@ fun SmartMessagesAppNav(
     onRequestPermissions: () -> Unit
 ) {
     val navController = rememberNavController()
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     // Request Runtime Permissions on Launch
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
-    ) {
-        // Permissions granted/denied, reload conversations
+    ) { permissions ->
+        val smsGranted = permissions[android.Manifest.permission.READ_SMS] == true ||
+                PermissionHelper.hasSmsPermission(context)
+        if (smsGranted) {
+            repository.startObserving()
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                repository.loadConversations()
+            }
+        }
     }
 
     LaunchedEffect(Unit) {
-        permissionLauncher.launch(PermissionHelper.REQUIRED_PERMISSIONS)
+        if (!PermissionHelper.hasSmsPermission(context)) {
+            permissionLauncher.launch(PermissionHelper.REQUIRED_PERMISSIONS)
+        } else {
+            repository.startObserving()
+            repository.loadConversations()
+        }
     }
 
     NavHost(
@@ -93,6 +107,9 @@ fun SmartMessagesAppNav(
         composable("inbox") {
             ConversationListScreen(
                 repository = repository,
+                onRequestPermissions = {
+                    permissionLauncher.launch(PermissionHelper.REQUIRED_PERMISSIONS)
+                },
                 onOpenChat = { threadId, address ->
                     val encodedAddress = Uri.encode(address)
                     navController.navigate("chat/$threadId/$encodedAddress")

@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Chat
@@ -62,6 +63,7 @@ import com.smartmessages.app.ui.theme.PurpleUltraLight
 import com.smartmessages.app.ui.theme.TextDark
 import com.smartmessages.app.ui.theme.TextMuted
 import com.smartmessages.app.util.PermissionHelper
+import com.smartmessages.app.util.SmsEvents
 import kotlinx.coroutines.launch
 
 @Composable
@@ -70,6 +72,7 @@ fun ConversationListScreen(
     onOpenChat: (Long, String) -> Unit,
     onComposeNew: () -> Unit,
     onOpenSettings: () -> Unit,
+    onRequestPermissions: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -84,6 +87,7 @@ fun ConversationListScreen(
     var isSearchActive by remember { mutableStateOf(false) }
 
     var isDefaultSms by remember { mutableStateOf(PermissionHelper.isDefaultSmsApp(context)) }
+    var hasSmsPerm by remember { mutableStateOf(PermissionHelper.hasSmsPermission(context)) }
 
     val visibleCategories = remember(preferences) {
         if (!preferences.smartCategorizationEnabled) {
@@ -100,13 +104,21 @@ fun ConversationListScreen(
     }
 
     LaunchedEffect(Unit) {
-        if (PermissionHelper.hasRequiredPermissions(context)) {
+        hasSmsPerm = PermissionHelper.hasSmsPermission(context)
+        if (hasSmsPerm) {
             repository.loadConversations()
             if (preferences.autoDeleteExpiredOtp && PermissionHelper.isDefaultSmsApp(context)) {
                 repository.deleteExpiredOtps(24)
             }
         }
         isDefaultSms = PermissionHelper.isDefaultSmsApp(context)
+    }
+
+    // Real-time instant reload when incoming SMS arrives
+    LaunchedEffect(Unit) {
+        SmsEvents.newSmsFlow.collect {
+            repository.loadConversations()
+        }
     }
 
     // Filter conversations based on Category and Search Query
@@ -180,6 +192,65 @@ fun ConversationListScreen(
                 .background(BgLight)
                 .padding(paddingValues)
         ) {
+            // SMS Permission Required Banner
+            AnimatedVisibility(visible = !hasSmsPerm) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = PurpleUltraLight)
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(PurplePrimary),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Chat,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "SMS Permission Needed",
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextDark
+                                )
+                                Text(
+                                    text = "Allow SMS access to read and receive messages",
+                                    fontSize = 12.sp,
+                                    color = TextMuted
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Button(
+                            onClick = {
+                                onRequestPermissions()
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Allow Permission", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+
             // Default SMS App Warning Banner if not set as default
             AnimatedVisibility(visible = !isDefaultSms) {
                 Card(
@@ -287,7 +358,10 @@ fun ConversationListScreen(
                 }
             } else {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    items(filteredList, key = { it.threadId }) { conversation ->
+                    itemsIndexed(
+                        items = filteredList,
+                        key = { index, item -> "${item.threadId}_${item.address}_$index" }
+                    ) { _, conversation ->
                         ConversationItem(
                             conversation = conversation,
                             onClick = {

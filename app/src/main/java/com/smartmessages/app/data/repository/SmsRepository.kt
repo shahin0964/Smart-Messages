@@ -2,8 +2,11 @@ package com.smartmessages.app.data.repository
 
 import android.content.ContentValues
 import android.content.Context
+import android.database.ContentObserver
 import android.net.Uri
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.provider.ContactsContract
 import android.provider.Telephony
 import android.telephony.SmsManager
@@ -12,10 +15,15 @@ import com.smartmessages.app.data.model.Conversation
 import com.smartmessages.app.data.model.Message
 import com.smartmessages.app.data.model.MessageCategory
 import com.smartmessages.app.util.OtpExtractor
+import com.smartmessages.app.util.SmsEvents
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class SmsRepository(private val context: Context) {
@@ -27,6 +35,55 @@ class SmsRepository(private val context: Context) {
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
     private val contactCache = mutableMapOf<String, String?>()
+    private val threadAddressCache = mutableMapOf<Long, String>()
+
+    private var observerRegistered = false
+    private val contentObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
+        private var debounceJob: Job? = null
+        override fun onChange(selfChange: Boolean, uri: Uri?) {
+            super.onChange(selfChange, uri)
+            debounceJob?.cancel()
+            debounceJob = CoroutineScope(Dispatchers.IO).launch {
+                delay(150)
+                loadConversations()
+            }
+        }
+    }
+
+    init {
+        startObserving()
+        CoroutineScope(Dispatchers.IO).launch {
+            SmsEvents.newSmsFlow.collect {
+                loadConversations()
+            }
+        }
+    }
+
+    fun startObserving() {
+        if (!observerRegistered) {
+            try {
+                context.contentResolver.registerContentObserver(
+                    Telephony.Sms.CONTENT_URI,
+                    true,
+                    contentObserver
+                )
+                observerRegistered = true
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    fun stopObserving() {
+        if (observerRegistered) {
+            try {
+                context.contentResolver.unregisterContentObserver(contentObserver)
+                observerRegistered = false
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
 
     /**
      * Loads all conversation threads from the Telephony ContentProvider.
@@ -50,19 +107,23 @@ class SmsRepository(private val context: Context) {
                 "date DESC"
             )
 
+            val preferences = AppSettingsPreferences(context)
+
             cursor?.use {
                 val threadIdCol = it.getColumnIndex(Telephony.Sms.Conversations.THREAD_ID)
                 val snippetCol = it.getColumnIndex(Telephony.Sms.Conversations.SNIPPET)
 
+                val seenThreadIds = mutableSetOf<Long>()
                 while (it.moveToNext()) {
                     val threadId = it.getLong(threadIdCol)
+                    if (threadId <= 0 || !seenThreadIds.add(threadId)) continue
+
                     val snippet = if (snippetCol != -1) it.getString(snippetCol) ?: "" else ""
 
                     // Fetch latest message metadata for address and date
                     val (address, date, unread) = getThreadDetails(threadId)
                     if (address.isNotBlank()) {
                         val contactName = getContactName(address)
-                        val preferences = AppSettingsPreferences(context)
                         val category = CategoryClassifier.classify(address, snippet, preferences)
                         val latestOtp = OtpExtractor.extractOtp(snippet)
 
@@ -74,6 +135,73 @@ class SmsRepository(private val context: Context) {
                                 snippet = snippet,
                                 date = date,
                                 unreadCount = unread,
+                                category = category,
+                                latestOtp = latestOtp
+                            )
+                        )
+                    }
+
+                    if (result.size >= 100) break
+                }
+            }
+
+            // Fallback: If Conversations table is empty or unindexed, query Telephony.Sms directly
+            if (result.isEmpty()) {
+                val directCursor = context.contentResolver.query(
+                    Telephony.Sms.CONTENT_URI,
+                    arrayOf(
+                        Telephony.Sms.THREAD_ID,
+                        Telephony.Sms.ADDRESS,
+                        Telephony.Sms.BODY,
+                        Telephony.Sms.DATE,
+                        Telephony.Sms.READ
+                    ),
+                    null,
+                    null,
+                    "${Telephony.Sms.DATE} DESC"
+                )
+
+                directCursor?.use { c ->
+                    val tidCol = c.getColumnIndex(Telephony.Sms.THREAD_ID)
+                    val addrCol = c.getColumnIndex(Telephony.Sms.ADDRESS)
+                    val bodyCol = c.getColumnIndex(Telephony.Sms.BODY)
+                    val dateCol = c.getColumnIndex(Telephony.Sms.DATE)
+                    val readCol = c.getColumnIndex(Telephony.Sms.READ)
+
+                    val threadMap = mutableMapOf<Long, Triple<String, String, Long>>()
+                    val unreadMap = mutableMapOf<Long, Int>()
+
+                    while (c.moveToNext()) {
+                        val tid = if (tidCol != -1) c.getLong(tidCol) else 0L
+                        val effectiveTid = if (tid > 0) tid else (c.position.toLong() + 1000000L)
+                        val addr = if (addrCol != -1) c.getString(addrCol) ?: "" else ""
+                        val body = if (bodyCol != -1) c.getString(bodyCol) ?: "" else ""
+                        val date = if (dateCol != -1) c.getLong(dateCol) else 0L
+                        val isRead = if (readCol != -1) c.getInt(readCol) == 1 else true
+
+                        if (!threadMap.containsKey(effectiveTid) && addr.isNotBlank()) {
+                            threadMap[effectiveTid] = Triple(addr, body, date)
+                        }
+                        if (!isRead) {
+                            unreadMap[effectiveTid] = (unreadMap[effectiveTid] ?: 0) + 1
+                        }
+
+                        if (threadMap.size >= 100) break
+                    }
+
+                    for ((tid, info) in threadMap) {
+                        val (addr, snippet, date) = info
+                        val contactName = getContactName(addr)
+                        val category = CategoryClassifier.classify(addr, snippet, preferences)
+                        val latestOtp = OtpExtractor.extractOtp(snippet)
+                        result.add(
+                            Conversation(
+                                threadId = tid,
+                                address = addr,
+                                contactName = contactName,
+                                snippet = snippet,
+                                date = date,
+                                unreadCount = unreadMap[tid] ?: 0,
                                 category = category,
                                 latestOtp = latestOtp
                             )
@@ -92,7 +220,7 @@ class SmsRepository(private val context: Context) {
     }
 
     private fun getThreadDetails(threadId: Long): Triple<String, Long, Int> {
-        var address = ""
+        var address = threadAddressCache[threadId] ?: ""
         var date = 0L
         var unread = 0
 
@@ -117,9 +245,15 @@ class SmsRepository(private val context: Context) {
                 val readCol = it.getColumnIndex(Telephony.Sms.READ)
 
                 var isFirst = true
+                var count = 0
                 while (it.moveToNext()) {
                     if (isFirst) {
-                        address = it.getString(addressCol) ?: ""
+                        if (address.isBlank()) {
+                            address = it.getString(addressCol) ?: ""
+                            if (address.isNotBlank()) {
+                                threadAddressCache[threadId] = address
+                            }
+                        }
                         date = it.getLong(dateCol)
                         isFirst = false
                     }
@@ -127,6 +261,8 @@ class SmsRepository(private val context: Context) {
                     if (!isRead) {
                         unread++
                     }
+                    count++
+                    if (count >= 50) break
                 }
             }
         } catch (e: Exception) {
@@ -205,6 +341,81 @@ class SmsRepository(private val context: Context) {
     }
 
     /**
+     * Loads messages matching a phone address (useful when threadId is not yet created or synced).
+     */
+    suspend fun getMessagesByAddress(targetAddress: String): List<Message> = withContext(Dispatchers.IO) {
+        val messages = mutableListOf<Message>()
+        val cleanTarget = targetAddress.replace(Regex("[^0-9+]"), "")
+
+        val projection = arrayOf(
+            Telephony.Sms._ID,
+            Telephony.Sms.THREAD_ID,
+            Telephony.Sms.ADDRESS,
+            Telephony.Sms.BODY,
+            Telephony.Sms.DATE,
+            Telephony.Sms.TYPE,
+            Telephony.Sms.READ,
+            Telephony.Sms.STATUS
+        )
+
+        try {
+            val cursor = context.contentResolver.query(
+                Telephony.Sms.CONTENT_URI,
+                projection,
+                null,
+                null,
+                "${Telephony.Sms.DATE} ASC"
+            )
+
+            cursor?.use {
+                val idCol = it.getColumnIndex(Telephony.Sms._ID)
+                val tidCol = it.getColumnIndex(Telephony.Sms.THREAD_ID)
+                val addressCol = it.getColumnIndex(Telephony.Sms.ADDRESS)
+                val bodyCol = it.getColumnIndex(Telephony.Sms.BODY)
+                val dateCol = it.getColumnIndex(Telephony.Sms.DATE)
+                val typeCol = it.getColumnIndex(Telephony.Sms.TYPE)
+                val readCol = it.getColumnIndex(Telephony.Sms.READ)
+                val statusCol = it.getColumnIndex(Telephony.Sms.STATUS)
+
+                while (it.moveToNext()) {
+                    val addr = it.getString(addressCol) ?: ""
+                    val cleanAddr = addr.replace(Regex("[^0-9+]"), "")
+                    if (addr.equals(targetAddress, ignoreCase = true) ||
+                        (cleanTarget.isNotBlank() && (cleanAddr.endsWith(cleanTarget) || cleanTarget.endsWith(cleanAddr)))) {
+                        val id = it.getLong(idCol)
+                        val tid = it.getLong(tidCol)
+                        val body = it.getString(bodyCol) ?: ""
+                        val date = it.getLong(dateCol)
+                        val type = it.getInt(typeCol)
+                        val isIncoming = (type == Telephony.Sms.MESSAGE_TYPE_INBOX)
+                        val isRead = (it.getInt(readCol) == 1)
+                        val status = it.getInt(statusCol)
+                        val otp = OtpExtractor.extractOtp(body)
+
+                        messages.add(
+                            Message(
+                                id = id,
+                                threadId = tid,
+                                address = addr,
+                                body = body,
+                                date = date,
+                                isIncoming = isIncoming,
+                                isRead = isRead,
+                                status = status,
+                                otpCode = otp
+                            )
+                        )
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        messages
+    }
+
+    /**
      * Resolves contact display name from phone address.
      */
     fun getContactName(phoneNumber: String): String? {
@@ -267,11 +478,20 @@ class SmsRepository(private val context: Context) {
             }
 
             // Save sent SMS to Telephony Provider
+            val threadId = try {
+                Telephony.Threads.getOrCreateThreadId(context, address)
+            } catch (e: Exception) {
+                null
+            }
             val values = ContentValues().apply {
+                if (threadId != null) {
+                    put(Telephony.Sms.THREAD_ID, threadId)
+                }
                 put(Telephony.Sms.ADDRESS, address)
                 put(Telephony.Sms.BODY, body)
                 put(Telephony.Sms.DATE, System.currentTimeMillis())
                 put(Telephony.Sms.READ, 1)
+                put(Telephony.Sms.SEEN, 1)
                 put(Telephony.Sms.TYPE, Telephony.Sms.MESSAGE_TYPE_SENT)
                 if (subId != null && subId != SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
                     put(Telephony.Sms.SUBSCRIPTION_ID, subId)

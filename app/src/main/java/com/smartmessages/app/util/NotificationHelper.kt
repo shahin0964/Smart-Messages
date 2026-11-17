@@ -47,7 +47,9 @@ object NotificationHelper {
         context: Context,
         sender: String,
         body: String,
-        otpCode: String? = null
+        otpCode: String? = null,
+        soundEnabled: Boolean = true,
+        vibrationEnabled: Boolean = true
     ) {
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
         val notifId = (System.currentTimeMillis() % 100000).toInt()
@@ -76,6 +78,13 @@ object NotificationHelper {
             .setAutoCancel(true)
             .setContentIntent(openAppPendingIntent)
 
+        if (!soundEnabled) {
+            builder.setSilent(true)
+        }
+        if (!vibrationEnabled) {
+            builder.setVibrate(longArrayOf(0))
+        }
+
         // Add "Copy OTP" Action button if OTP was detected!
         if (isOtp) {
             val copyIntent = Intent(context, CopyOtpReceiver::class.java).apply {
@@ -96,6 +105,10 @@ object NotificationHelper {
             )
         }
 
-        nm.notify(notifId, builder.build())
+        try {
+            nm.notify(notifId, builder.build())
+        } catch (t: Throwable) {
+            t.printStackTrace()
+        }
     }
 }
