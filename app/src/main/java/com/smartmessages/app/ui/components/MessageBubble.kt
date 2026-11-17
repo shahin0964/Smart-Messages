@@ -45,6 +45,7 @@ import java.util.Locale
 @Composable
 fun MessageBubble(
     message: Message,
+    fontSizeSp: Float = 15f,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -91,8 +92,8 @@ fun MessageBubble(
                 Text(
                     text = message.body,
                     color = textColor,
-                    fontSize = 15.sp,
-                    lineHeight = 21.sp
+                    fontSize = fontSizeSp.sp,
+                    lineHeight = (fontSizeSp * 1.4f).sp
                 )
 
                 // Inline OTP One-Tap Copy button if OTP detected

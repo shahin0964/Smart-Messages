@@ -25,12 +25,20 @@ import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DoneAll
+import androidx.compose.material.icons.filled.EditNote
+import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.Pin
 import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.SimCard
 import androidx.compose.material.icons.filled.Sms
 import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.material.icons.filled.Vibration
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -47,6 +55,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -67,7 +76,10 @@ import com.smartmessages.app.ui.dialogs.AboutAppDialog
 import com.smartmessages.app.ui.dialogs.BackupRestoreDialog
 import com.smartmessages.app.ui.dialogs.BlockedManagerDialog
 import com.smartmessages.app.ui.dialogs.CheckUpdateDialog
+import com.smartmessages.app.ui.dialogs.FontSizeDialog
+import com.smartmessages.app.ui.dialogs.PreferredSimDialog
 import com.smartmessages.app.ui.dialogs.SmartCategorizationDialog
+import com.smartmessages.app.ui.dialogs.SmsSignatureDialog
 import com.smartmessages.app.ui.theme.BgLight
 import com.smartmessages.app.ui.theme.PurplePrimary
 import com.smartmessages.app.ui.theme.PurpleUltraLight
@@ -97,14 +109,41 @@ fun SettingsScreen(
     var spamProtectionEnabled by remember { mutableStateOf(preferences.scamShieldEnabled) }
     var autoDeleteExpiredOtp by remember { mutableStateOf(preferences.autoDeleteExpiredOtp) }
 
+    // Dual SIM & Messaging States
+    var preferredSimSlot by remember { mutableIntStateOf(preferences.preferredSimSlot) }
+    var deliveryReports by remember { mutableStateOf(preferences.deliveryReports) }
+    var showCharCounter by remember { mutableStateOf(preferences.showCharCounter) }
+    var currentFontSize by remember { mutableStateOf(preferences.fontSize) }
+    var confirmDelete by remember { mutableStateOf(preferences.confirmDelete) }
+    var currentSignature by remember { mutableStateOf(preferences.smsSignature) }
+    var soundEnabled by remember { mutableStateOf(preferences.soundEnabled) }
+    var vibrationEnabled by remember { mutableStateOf(preferences.vibrationEnabled) }
+
     // Dialog Visibility States
     var showCategorizationDialog by remember { mutableStateOf(false) }
     var showBlockedDialog by remember { mutableStateOf(false) }
     var showBackupDialog by remember { mutableStateOf(false) }
     var showUpdateDialog by remember { mutableStateOf(false) }
     var showAboutDialog by remember { mutableStateOf(false) }
+    var showPreferredSimDialog by remember { mutableStateOf(false) }
+    var showFontSizeDialog by remember { mutableStateOf(false) }
+    var showSignatureDialog by remember { mutableStateOf(false) }
 
     val currentVersion = remember { OtaUpdateManager.getCurrentVersion(context) }
+
+    val preferredSimText = when (preferredSimSlot) {
+        0 -> "SIM 1"
+        1 -> "SIM 2"
+        else -> "Always Ask"
+    }
+
+    val fontSizeText = when (currentFontSize) {
+        "Small" -> "Small (13sp)"
+        "Large" -> "Large (18sp)"
+        else -> "Normal (15sp)"
+    }
+
+    val signatureText = if (currentSignature.isNotBlank()) currentSignature else "None"
 
     LaunchedEffect(Unit) {
         isDefaultSms = PermissionHelper.isDefaultSmsApp(context)
@@ -209,7 +248,104 @@ fun SettingsScreen(
                 }
             }
 
-            // SECTION 1: SMART FEATURES & OTP
+            // SECTION 1: DUAL SIM & NETWORK
+            SettingsSectionHeader("Dual SIM & Network")
+
+            SettingsOptionItem(
+                icon = Icons.Default.SimCard,
+                title = "Preferred SIM for SMS",
+                subtitle = preferredSimText,
+                onClick = {
+                    showPreferredSimDialog = true
+                }
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // SECTION 2: MESSAGING PREFERENCES
+            SettingsSectionHeader("Messaging Preferences")
+
+            SettingsSwitchItem(
+                icon = Icons.Default.DoneAll,
+                title = "SMS Delivery Reports",
+                subtitle = "Request delivery confirmation from mobile carrier",
+                checked = deliveryReports,
+                onCheckedChange = {
+                    deliveryReports = it
+                    preferences.deliveryReports = it
+                }
+            )
+
+            SettingsSwitchItem(
+                icon = Icons.Default.Pin,
+                title = "Character Counter",
+                subtitle = "Show counter and SMS parts (160 / 70 characters)",
+                checked = showCharCounter,
+                onCheckedChange = {
+                    showCharCounter = it
+                    preferences.showCharCounter = it
+                }
+            )
+
+            SettingsOptionItem(
+                icon = Icons.Default.FormatSize,
+                title = "Message Font Size",
+                subtitle = fontSizeText,
+                onClick = {
+                    showFontSizeDialog = true
+                }
+            )
+
+            SettingsOptionItem(
+                icon = Icons.Default.EditNote,
+                title = "SMS Signature",
+                subtitle = signatureText,
+                onClick = {
+                    showSignatureDialog = true
+                }
+            )
+
+            SettingsSwitchItem(
+                icon = Icons.Default.Delete,
+                title = "Confirm Deletion",
+                subtitle = "Ask for confirmation before deleting messages",
+                checked = confirmDelete,
+                onCheckedChange = {
+                    confirmDelete = it
+                    preferences.confirmDelete = it
+                }
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // SECTION 3: NOTIFICATIONS & SOUNDS
+            SettingsSectionHeader("Notifications & Sounds")
+
+            SettingsSwitchItem(
+                icon = Icons.Default.VolumeUp,
+                title = "Message Sounds",
+                subtitle = "Play sound for incoming text messages",
+                checked = soundEnabled,
+                onCheckedChange = {
+                    soundEnabled = it
+                    preferences.soundEnabled = it
+                }
+            )
+
+            SettingsSwitchItem(
+                icon = Icons.Default.Vibration,
+                title = "Vibrate on Message",
+                subtitle = "Vibrate phone when a new message arrives",
+                checked = vibrationEnabled,
+                onCheckedChange = {
+                    vibrationEnabled = it
+                    preferences.vibrationEnabled = it
+                }
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // SECTION 4: SMART FEATURES & OTP
             SettingsSectionHeader("Smart Features & OTP")
 
             SettingsSwitchItem(
@@ -245,7 +381,7 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // SECTION 2: SPAM & SECURITY
+            // SECTION 5: SPAM & SECURITY
             SettingsSectionHeader("Spam & Security")
 
             SettingsSwitchItem(
@@ -276,7 +412,7 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // SECTION 3: STORAGE & BACKUP
+            // SECTION 6: STORAGE & BACKUP
             SettingsSectionHeader("Storage & Backup")
 
             SettingsSwitchItem(
@@ -311,7 +447,7 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // SECTION 4: ABOUT & UPDATES
+            // SECTION 7: ABOUT & UPDATES
             SettingsSectionHeader("About & Updates")
 
             SettingsOptionItem(
@@ -335,6 +471,36 @@ fun SettingsScreen(
     }
 
     // Interactive Dialogs
+    if (showPreferredSimDialog) {
+        PreferredSimDialog(
+            preferences = preferences,
+            onDismiss = { showPreferredSimDialog = false },
+            onSelected = {
+                preferredSimSlot = preferences.preferredSimSlot
+            }
+        )
+    }
+
+    if (showFontSizeDialog) {
+        FontSizeDialog(
+            preferences = preferences,
+            onDismiss = { showFontSizeDialog = false },
+            onSelected = {
+                currentFontSize = preferences.fontSize
+            }
+        )
+    }
+
+    if (showSignatureDialog) {
+        SmsSignatureDialog(
+            preferences = preferences,
+            onDismiss = { showSignatureDialog = false },
+            onSaved = {
+                currentSignature = preferences.smsSignature
+            }
+        )
+    }
+
     if (showCategorizationDialog) {
         SmartCategorizationDialog(
             preferences = preferences,

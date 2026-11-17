@@ -5,7 +5,9 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -78,9 +80,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.smartmessages.app.data.model.AppReleaseInfo
+import com.smartmessages.app.data.model.SimInfo
 import com.smartmessages.app.data.model.UpdateStatus
 import com.smartmessages.app.data.repository.AppSettingsPreferences
 import com.smartmessages.app.data.repository.OtaUpdateManager
+import com.smartmessages.app.data.repository.SimRepository
 import com.smartmessages.app.data.repository.SmsBackupManager
 import com.smartmessages.app.data.repository.SmsRepository
 import com.smartmessages.app.ui.theme.BgLight
@@ -984,3 +988,340 @@ fun AboutAppDialog(
         }
     }
 }
+
+// ==========================================
+// 6. PREFERRED SIM DIALOG
+// ==========================================
+@Composable
+fun PreferredSimDialog(
+    preferences: AppSettingsPreferences,
+    onDismiss: () -> Unit,
+    onSelected: () -> Unit
+) {
+    val context = LocalContext.current
+    val simRepo = remember { SimRepository(context) }
+    val simCards = remember { simRepo.getSimCards() }
+    var selectedSlot by remember { mutableIntStateOf(preferences.preferredSimSlot) }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = Color.White,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Preferred SIM for SMS",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextDark
+                    )
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = TextMuted)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Option: Always Ask (-1)
+                SimChoiceCard(
+                    title = "Always Ask",
+                    subtitle = "Select SIM each time before sending",
+                    selected = selectedSlot == -1,
+                    onClick = {
+                        selectedSlot = -1
+                        preferences.preferredSimSlot = -1
+                        onSelected()
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Options for each active SIM
+                simCards.forEach { sim ->
+                    SimChoiceCard(
+                        title = "${sim.shortLabel} (${sim.carrierName})",
+                        subtitle = "Send SMS via this SIM by default",
+                        selected = selectedSlot == sim.slotIndex,
+                        onClick = {
+                            selectedSlot = sim.slotIndex
+                            preferences.preferredSimSlot = sim.slotIndex
+                            onSelected()
+                        }
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Button(
+                    onClick = onDismiss,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Done", fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SimChoiceCard(
+    title: String,
+    subtitle: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (selected) PurpleUltraLight else Color(0xFFF8FAFC)
+        ),
+        border = if (selected) BorderStroke(1.5.dp, PurplePrimary) else null
+    ) {
+        Row(
+            modifier = Modifier.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(20.dp)
+                    .clip(CircleShape)
+                    .background(if (selected) PurplePrimary else Color.Transparent)
+                    .border(2.dp, if (selected) PurplePrimary else Color(0xFFCBD5E1), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                if (selected) {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(Color.White)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column {
+                Text(
+                    text = title,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (selected) PurplePrimary else TextDark
+                )
+                Text(
+                    text = subtitle,
+                    fontSize = 12.sp,
+                    color = TextMuted
+                )
+            }
+        }
+    }
+}
+
+// ==========================================
+// 7. MESSAGE FONT SIZE DIALOG
+// ==========================================
+@Composable
+fun FontSizeDialog(
+    preferences: AppSettingsPreferences,
+    onDismiss: () -> Unit,
+    onSelected: () -> Unit
+) {
+    var selectedSize by remember { mutableStateOf(preferences.fontSize) }
+    val options = listOf(
+        Triple("Small", "Compact text (13sp)", 13f),
+        Triple("Normal", "Standard text (15sp)", 15f),
+        Triple("Large", "Larger text (18sp)", 18f)
+    )
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = Color.White,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Message Font Size",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextDark
+                    )
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = TextMuted)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                options.forEach { (size, label, spVal) ->
+                    val isSelected = selectedSize == size
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp)
+                            .clickable {
+                                selectedSize = size
+                                preferences.fontSize = size
+                                onSelected()
+                            },
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (isSelected) PurpleUltraLight else Color(0xFFF8FAFC)
+                        ),
+                        border = if (isSelected) BorderStroke(1.5.dp, PurplePrimary) else null
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Aa",
+                                fontSize = spVal.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isSelected) PurplePrimary else TextDark,
+                                modifier = Modifier.width(36.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
+                                Text(
+                                    text = size,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (isSelected) PurplePrimary else TextDark
+                                )
+                                Text(
+                                    text = label,
+                                    fontSize = 12.sp,
+                                    color = TextMuted
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Button(
+                    onClick = onDismiss,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Done", fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}
+
+// ==========================================
+// 8. SMS SIGNATURE DIALOG
+// ==========================================
+@Composable
+fun SmsSignatureDialog(
+    preferences: AppSettingsPreferences,
+    onDismiss: () -> Unit,
+    onSaved: () -> Unit
+) {
+    var signatureText by remember { mutableStateOf(preferences.smsSignature) }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = Color.White,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "SMS Signature",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextDark
+                    )
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = TextMuted)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Appended automatically to outgoing text messages.",
+                    fontSize = 13.sp,
+                    color = TextMuted
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                OutlinedTextField(
+                    value = signatureText,
+                    onValueChange = { signatureText = it },
+                    placeholder = { Text("e.g. Sent via Smart Messages", color = TextMuted) },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = PurplePrimary,
+                        unfocusedBorderColor = Color(0xFFCBD5E1)
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = {
+                        signatureText = ""
+                        preferences.smsSignature = ""
+                        onSaved()
+                    }) {
+                        Text("Clear", color = TextMuted)
+                    }
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    Button(
+                        onClick = {
+                            preferences.smsSignature = signatureText.trim()
+                            onSaved()
+                            onDismiss()
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary)
+                    ) {
+                        Text("Save", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+}
+

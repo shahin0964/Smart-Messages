@@ -8,7 +8,8 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -30,6 +31,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.SimCard
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -59,6 +61,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.smartmessages.app.data.model.Message
+import com.smartmessages.app.data.repository.AppSettingsPreferences
+import com.smartmessages.app.data.repository.SimRepository
 import com.smartmessages.app.data.repository.SmsRepository
 import com.smartmessages.app.ui.components.MessageBubble
 import com.smartmessages.app.ui.theme.BgLight
@@ -82,6 +86,20 @@ fun ChatScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val preferences = remember { AppSettingsPreferences(context) }
+    val simRepo = remember { SimRepository(context) }
+
+    val simList = remember { simRepo.getSimCards() }
+    val preferredSlot = preferences.preferredSimSlot
+    var selectedSim by remember(simList, preferredSlot) {
+        mutableStateOf(
+            if (preferredSlot in 0..1) {
+                simList.firstOrNull { it.slotIndex == preferredSlot } ?: simList.firstOrNull()
+            } else {
+                simList.firstOrNull()
+            }
+        )
+    }
 
     var messages by remember { mutableStateOf<List<Message>>(emptyList()) }
     var inputText by remember { mutableStateOf("") }
@@ -109,6 +127,14 @@ fun ChatScreen(
 
     val latestOtp = remember(messages) {
         messages.lastOrNull { it.isIncoming }?.otpCode
+    }
+
+    val fontSizeSp = remember(preferences.fontSize) {
+        when (preferences.fontSize) {
+            "Small" -> 13f
+            "Large" -> 18f
+            else -> 15f
+        }
     }
 
     Scaffold(
@@ -191,58 +217,134 @@ fun ChatScreen(
                     .fillMaxWidth()
                     .imePadding()
             ) {
-                Row(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
                 ) {
-                    OutlinedTextField(
-                        value = inputText,
-                        onValueChange = { inputText = it },
-                        placeholder = { Text("Text message...", color = TextMuted) },
-                        maxLines = 4,
-                        shape = RoundedCornerShape(24.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = PurplePrimary,
-                            unfocusedBorderColor = DividerColor
-                        ),
-                        modifier = Modifier.weight(1f)
-                    )
+                    // Character Counter
+                    if (preferences.showCharCounter && inputText.isNotEmpty()) {
+                        val isUnicode = inputText.any { it.code > 127 }
+                        val singleLimit = if (isUnicode) 70 else 160
+                        val multiLimit = if (isUnicode) 67 else 153
+                        val charCount = inputText.length
+                        val msgCount = if (charCount <= singleLimit) 1 else ((charCount + multiLimit - 1) / multiLimit)
 
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    val canSend = inputText.isNotBlank() && !isSending
-                    IconButton(
-                        onClick = {
-                            val textToSend = inputText.trim()
-                            if (textToSend.isNotEmpty() && !isSending) {
-                                isSending = true
-                                scope.launch {
-                                    val success = repository.sendSms(address, textToSend)
-                                    if (success) {
-                                        inputText = ""
-                                        reloadMessages()
-                                    } else {
-                                        Toast.makeText(context, "Failed to send SMS", Toast.LENGTH_SHORT).show()
-                                    }
-                                    isSending = false
-                                }
-                            }
-                        },
-                        enabled = canSend,
-                        modifier = Modifier
-                            .size(48.dp)
-                            .background(
-                                color = if (canSend) PurplePrimary else Color(0xFFE2E8F0),
-                                shape = CircleShape
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 4.dp, vertical = 2.dp),
+                            horizontalArrangement = Arrangement.End,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = if (msgCount > 1) "$charCount / $singleLimit ($msgCount SMS)" else "$charCount / $singleLimit",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = if (charCount > singleLimit) PurplePrimary else TextMuted
                             )
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.Send,
-                            contentDescription = "Send",
-                            tint = if (canSend) Color.White else TextMuted
+                        // SIM Selector chip
+                        Surface(
+                            shape = RoundedCornerShape(20.dp),
+                            color = PurpleUltraLight,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(20.dp))
+                                .clickable {
+                                    if (simList.isNotEmpty()) {
+                                        val currentIndex = simList.indexOf(selectedSim)
+                                        val nextIndex = (currentIndex + 1) % simList.size
+                                        selectedSim = simList[nextIndex]
+                                        Toast.makeText(
+                                            context,
+                                            "Switched to ${selectedSim?.shortLabel} (${selectedSim?.carrierName})",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
+                                }
+                                .padding(horizontal = 10.dp, vertical = 8.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.SimCard,
+                                    contentDescription = "Switch SIM",
+                                    tint = PurplePrimary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = selectedSim?.shortLabel ?: "SIM 1",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = PurplePrimary
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        OutlinedTextField(
+                            value = inputText,
+                            onValueChange = { inputText = it },
+                            placeholder = { Text("Text message...", color = TextMuted) },
+                            maxLines = 4,
+                            shape = RoundedCornerShape(24.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = PurplePrimary,
+                                unfocusedBorderColor = DividerColor
+                            ),
+                            modifier = Modifier.weight(1f)
                         )
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        val canSend = inputText.isNotBlank() && !isSending
+                        IconButton(
+                            onClick = {
+                                val textToSend = inputText.trim()
+                                if (textToSend.isNotEmpty() && !isSending) {
+                                    isSending = true
+                                    scope.launch {
+                                        val finalBody = if (preferences.smsSignature.isNotBlank()) {
+                                            "$textToSend\n${preferences.smsSignature.trim()}"
+                                        } else {
+                                            textToSend
+                                        }
+                                        val success = repository.sendSms(
+                                            address = address,
+                                            body = finalBody,
+                                            subId = selectedSim?.subscriptionId
+                                        )
+                                        if (success) {
+                                            inputText = ""
+                                            reloadMessages()
+                                        } else {
+                                            Toast.makeText(context, "Failed to send SMS", Toast.LENGTH_SHORT).show()
+                                        }
+                                        isSending = false
+                                    }
+                                }
+                            },
+                            enabled = canSend,
+                            modifier = Modifier
+                                .size(48.dp)
+                                .background(
+                                    color = if (canSend) PurplePrimary else Color(0xFFE2E8F0),
+                                    shape = CircleShape
+                                )
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Send,
+                                contentDescription = "Send",
+                                tint = if (canSend) Color.White else TextMuted
+                            )
+                        }
                     }
                 }
             }
@@ -313,7 +415,10 @@ fun ChatScreen(
                     .padding(vertical = 8.dp)
             ) {
                 items(messages, key = { it.id }) { message ->
-                    MessageBubble(message = message)
+                    MessageBubble(
+                        message = message,
+                        fontSizeSp = fontSizeSp
+                    )
                 }
             }
         }

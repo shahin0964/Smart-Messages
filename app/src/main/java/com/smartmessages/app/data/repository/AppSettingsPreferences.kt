@@ -105,4 +105,46 @@ class AppSettingsPreferences(context: Context) {
     var autoDeleteExpiredOtp: Boolean
         get() = prefs.getBoolean("pref_auto_delete_expired_otp", false)
         set(value) = prefs.edit().putBoolean("pref_auto_delete_expired_otp", value).apply()
+
+    // ==========================================
+    // 5. Dual SIM Settings
+    // ==========================================
+    // -1 = Always Ask, 0 = SIM 1, 1 = SIM 2
+    var preferredSimSlot: Int
+        get() = prefs.getInt("pref_preferred_sim_slot", -1)
+        set(value) = prefs.edit().putInt("pref_preferred_sim_slot", value).apply()
+
+    // ==========================================
+    // 6. Messaging & Display Preferences
+    // ==========================================
+    var deliveryReports: Boolean
+        get() = prefs.getBoolean("pref_delivery_reports", false)
+        set(value) = prefs.edit().putBoolean("pref_delivery_reports", value).apply()
+
+    var showCharCounter: Boolean
+        get() = prefs.getBoolean("pref_show_char_counter", true)
+        set(value) = prefs.edit().putBoolean("pref_show_char_counter", value).apply()
+
+    var fontSize: String
+        get() = prefs.getString("pref_font_size", "Normal") ?: "Normal"
+        set(value) = prefs.edit().putString("pref_font_size", value).apply()
+
+    var confirmDelete: Boolean
+        get() = prefs.getBoolean("pref_confirm_delete", true)
+        set(value) = prefs.edit().putBoolean("pref_confirm_delete", value).apply()
+
+    var smsSignature: String
+        get() = prefs.getString("pref_sms_signature", "") ?: ""
+        set(value) = prefs.edit().putString("pref_sms_signature", value).apply()
+
+    // ==========================================
+    // 7. Notification Sound & Vibration
+    // ==========================================
+    var soundEnabled: Boolean
+        get() = prefs.getBoolean("pref_sound_enabled", true)
+        set(value) = prefs.edit().putBoolean("pref_sound_enabled", value).apply()
+
+    var vibrationEnabled: Boolean
+        get() = prefs.getBoolean("pref_vibration_enabled", true)
+        set(value) = prefs.edit().putBoolean("pref_vibration_enabled", value).apply()
 }

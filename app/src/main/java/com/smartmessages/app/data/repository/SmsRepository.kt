@@ -273,6 +273,9 @@ class SmsRepository(private val context: Context) {
                 put(Telephony.Sms.DATE, System.currentTimeMillis())
                 put(Telephony.Sms.READ, 1)
                 put(Telephony.Sms.TYPE, Telephony.Sms.MESSAGE_TYPE_SENT)
+                if (subId != null && subId != SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
+                    put(Telephony.Sms.SUBSCRIPTION_ID, subId)
+                }
             }
             context.contentResolver.insert(Telephony.Sms.Sent.CONTENT_URI, values)
 
