@@ -375,7 +375,7 @@ fun NewMessageScreen(
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             color = TextMuted,
-                            modifier = Modifier.padding(vertical = 8.dp, start = 4.dp)
+                            modifier = Modifier.padding(start = 4.dp, top = 8.dp, bottom = 8.dp)
                         )
                     }
 
