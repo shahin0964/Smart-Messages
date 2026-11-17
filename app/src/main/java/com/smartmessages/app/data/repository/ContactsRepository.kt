@@ -17,6 +17,13 @@ data class ContactSuggestion(
 class ContactsRepository(private val context: Context) {
 
     suspend fun getContactSuggestions(query: String = ""): List<ContactSuggestion> = withContext(Dispatchers.IO) {
+        val cleanQuery = query.trim().lowercase()
+        val digitsQuery = cleanQuery.replace(Regex("[^0-9]"), "")
+
+        if (cleanQuery.isBlank()) {
+            return@withContext emptyList()
+        }
+
         if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.READ_CONTACTS)
             != PackageManager.PERMISSION_GRANTED
         ) {
@@ -31,9 +38,6 @@ class ContactsRepository(private val context: Context) {
             ContactsContract.CommonDataKinds.Phone.NUMBER,
             ContactsContract.CommonDataKinds.Phone.PHOTO_THUMBNAIL_URI
         )
-
-        val cleanQuery = query.trim().lowercase()
-        val digitsQuery = cleanQuery.replace(Regex("[^0-9]"), "")
 
         try {
             val cursor = context.contentResolver.query(

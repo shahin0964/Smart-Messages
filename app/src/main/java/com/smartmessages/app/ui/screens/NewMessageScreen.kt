@@ -106,9 +106,15 @@ fun NewMessageScreen(
     var isLoadingContacts by remember { mutableStateOf(false) }
 
     LaunchedEffect(recipient) {
-        isLoadingContacts = true
-        suggestions = contactsRepo.getContactSuggestions(recipient)
-        isLoadingContacts = false
+        val q = recipient.trim()
+        if (q.isBlank()) {
+            suggestions = emptyList()
+            isLoadingContacts = false
+        } else {
+            isLoadingContacts = true
+            suggestions = contactsRepo.getContactSuggestions(q)
+            isLoadingContacts = false
+        }
     }
 
     Scaffold(
@@ -313,21 +319,63 @@ fun NewMessageScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Suggestions List
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-            ) {
-                // If user entered something, allow direct sending to that number / input
-                if (recipient.isNotBlank()) {
+            // Suggestions List or Empty Prompt
+            if (recipient.isBlank()) {
+                // Initial state: do not show contacts, show helpful prompt
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                        modifier = Modifier.padding(24.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(56.dp)
+                                .clip(CircleShape)
+                                .background(PurpleUltraLight),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Person,
+                                contentDescription = null,
+                                tint = PurplePrimary,
+                                modifier = Modifier.size(28.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = "Type name or phone number",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = TextDark
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Matching contacts will appear here",
+                            fontSize = 13.sp,
+                            color = TextMuted
+                        )
+                    }
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                ) {
+                    // Direct Send option to the typed input
                     item {
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = 4.dp)
                                 .clickable {
-                                    // Keep current recipient
+                                    // Direct send to current recipient
                                 },
                             shape = RoundedCornerShape(12.dp),
                             colors = CardDefaults.cardColors(containerColor = PurpleUltraLight)
@@ -367,85 +415,85 @@ fun NewMessageScreen(
                             }
                         }
                     }
-                }
 
-                if (suggestions.isNotEmpty()) {
-                    item {
-                        Text(
-                            text = if (recipient.isBlank()) "CONTACTS" else "MATCHING CONTACTS",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextMuted,
-                            modifier = Modifier.padding(start = 4.dp, top = 8.dp, bottom = 8.dp)
-                        )
-                    }
+                    if (suggestions.isNotEmpty()) {
+                        item {
+                            Text(
+                                text = "MATCHING CONTACTS (${suggestions.size})",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextMuted,
+                                modifier = Modifier.padding(start = 4.dp, top = 8.dp, bottom = 8.dp)
+                            )
+                        }
 
-                    itemsIndexed(
-                        items = suggestions,
-                        key = { index, contact -> "${contact.number}_${contact.name}_$index" }
-                    ) { _, contact ->
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 3.dp)
-                                .clickable {
-                                    recipient = contact.number
-                                },
-                            shape = RoundedCornerShape(12.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color.White)
-                        ) {
-                            Row(
+                        itemsIndexed(
+                            items = suggestions,
+                            key = { index, contact -> "${contact.number}_${contact.name}_$index" }
+                        ) { _, contact ->
+                            Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                                    .padding(vertical = 3.dp)
+                                    .clickable {
+                                        recipient = contact.number
+                                    },
+                                shape = RoundedCornerShape(12.dp),
+                                colors = CardDefaults.cardColors(containerColor = Color.White)
                             ) {
-                                Box(
+                                Row(
                                     modifier = Modifier
-                                        .size(38.dp)
-                                        .clip(CircleShape)
-                                        .background(PurpleUltraLight),
-                                    contentAlignment = Alignment.Center
+                                        .fillMaxWidth()
+                                        .padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text(
-                                        text = contact.name.firstOrNull()?.uppercaseChar()?.toString() ?: "#",
-                                        fontWeight = FontWeight.Bold,
-                                        color = PurplePrimary,
-                                        fontSize = 16.sp
-                                    )
-                                }
+                                    Box(
+                                        modifier = Modifier
+                                            .size(38.dp)
+                                            .clip(CircleShape)
+                                            .background(PurpleUltraLight),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = contact.name.firstOrNull()?.uppercaseChar()?.toString() ?: "#",
+                                            fontWeight = FontWeight.Bold,
+                                            color = PurplePrimary,
+                                            fontSize = 16.sp
+                                        )
+                                    }
 
-                                Spacer(modifier = Modifier.width(12.dp))
+                                    Spacer(modifier = Modifier.width(12.dp))
 
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = contact.name,
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = TextDark
-                                    )
-                                    Text(
-                                        text = contact.number,
-                                        fontSize = 12.sp,
-                                        color = TextMuted
-                                    )
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = contact.name,
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = TextDark
+                                        )
+                                        Text(
+                                            text = contact.number,
+                                            fontSize = 12.sp,
+                                            color = TextMuted
+                                        )
+                                    }
                                 }
                             }
                         }
-                    }
-                } else if (!isLoadingContacts && recipient.isBlank()) {
-                    item {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 40.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "Type a contact name or number above",
-                                fontSize = 13.sp,
-                                color = TextMuted
-                            )
+                    } else if (!isLoadingContacts) {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 32.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "No saved contacts matching \"$recipient\"",
+                                    fontSize = 13.sp,
+                                    color = TextMuted
+                                )
+                            }
                         }
                     }
                 }
