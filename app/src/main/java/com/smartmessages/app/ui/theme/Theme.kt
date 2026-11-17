@@ -17,8 +17,8 @@ private val DarkColorScheme = darkColorScheme(
     background = Color(0xFF0F172A),
     surface = Color(0xFF1E293B),
     onPrimary = Color.White,
-    onBackground = Color(0xFFF1F5F9),
-    onSurface = Color(0xFFF1F5F9)
+    onBackground = TextDark,
+    onSurface = TextDark
 )
 
 private val LightColorScheme = lightColorScheme(
@@ -36,7 +36,7 @@ private val LightColorScheme = lightColorScheme(
 
 @Composable
 fun SmartMessagesTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    darkTheme: Boolean = false, // Always enforce light theme identity matching Smart Dialer
     dynamicColor: Boolean = false, // Keep consistent brand identity like Smart Dialer
     content: @Composable () -> Unit
 ) {

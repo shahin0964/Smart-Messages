@@ -54,6 +54,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -229,9 +230,13 @@ fun NewMessageScreen(
                             value = messageBody,
                             onValueChange = { messageBody = it },
                             placeholder = { Text("Text message...", color = TextMuted) },
+                            textStyle = TextStyle(color = TextDark, fontSize = 15.sp),
                             maxLines = 4,
                             shape = RoundedCornerShape(24.dp),
                             colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = TextDark,
+                                unfocusedTextColor = TextDark,
+                                cursorColor = PurplePrimary,
                                 focusedBorderColor = PurplePrimary,
                                 unfocusedBorderColor = DividerColor
                             ),
@@ -298,6 +303,7 @@ fun NewMessageScreen(
                 label = { Text("To", color = PurplePrimary) },
                 placeholder = { Text("Type name or phone number", color = TextMuted) },
                 singleLine = true,
+                textStyle = TextStyle(color = TextDark, fontSize = 15.sp),
                 leadingIcon = {
                     Icon(Icons.Default.Person, contentDescription = null, tint = PurplePrimary)
                 },
@@ -311,6 +317,9 @@ fun NewMessageScreen(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
                 shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = TextDark,
+                    unfocusedTextColor = TextDark,
+                    cursorColor = PurplePrimary,
                     focusedBorderColor = PurplePrimary,
                     unfocusedBorderColor = DividerColor
                 ),

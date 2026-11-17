@@ -63,6 +63,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -350,9 +351,13 @@ fun ChatScreen(
                             value = inputText,
                             onValueChange = { inputText = it },
                             placeholder = { Text("Text message...", color = TextMuted) },
+                            textStyle = TextStyle(color = TextDark, fontSize = fontSizeSp.sp),
                             maxLines = 4,
                             shape = RoundedCornerShape(24.dp),
                             colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = TextDark,
+                                unfocusedTextColor = TextDark,
+                                cursorColor = PurplePrimary,
                                 focusedBorderColor = PurplePrimary,
                                 unfocusedBorderColor = DividerColor
                             ),

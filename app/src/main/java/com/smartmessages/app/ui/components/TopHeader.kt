@@ -35,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -70,8 +71,12 @@ fun TopHeader(
                 onValueChange = onSearchQueryChange,
                 placeholder = { Text("Search messages...", color = TextMuted) },
                 singleLine = true,
+                textStyle = TextStyle(color = TextDark, fontSize = 15.sp),
                 shape = RoundedCornerShape(24.dp),
                 colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = TextDark,
+                    unfocusedTextColor = TextDark,
+                    cursorColor = PurplePrimary,
                     focusedBorderColor = PurplePrimary,
                     unfocusedBorderColor = Color(0xFFE2E8F0)
                 ),

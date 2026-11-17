@@ -74,6 +74,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -342,11 +343,15 @@ fun BlockedManagerDialog(
                         OutlinedTextField(
                             value = newNumberInput,
                             onValueChange = { newNumberInput = it },
-                            placeholder = { Text("Enter number or sender ID...", fontSize = 13.sp) },
+                            placeholder = { Text("Enter number or sender ID...", fontSize = 13.sp, color = TextMuted) },
                             singleLine = true,
+                            textStyle = TextStyle(color = TextDark, fontSize = 14.sp),
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier.weight(1f),
                             colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = TextDark,
+                                unfocusedTextColor = TextDark,
+                                cursorColor = PurplePrimary,
                                 focusedBorderColor = PurplePrimary,
                                 unfocusedBorderColor = Color(0xFFE2E8F0)
                             )
@@ -417,11 +422,15 @@ fun BlockedManagerDialog(
                         OutlinedTextField(
                             value = newKeywordInput,
                             onValueChange = { newKeywordInput = it },
-                            placeholder = { Text("e.g. lottery, loan, casino...", fontSize = 13.sp) },
+                            placeholder = { Text("e.g. lottery, loan, casino...", fontSize = 13.sp, color = TextMuted) },
                             singleLine = true,
+                            textStyle = TextStyle(color = TextDark, fontSize = 14.sp),
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier.weight(1f),
                             colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = TextDark,
+                                unfocusedTextColor = TextDark,
+                                cursorColor = PurplePrimary,
                                 focusedBorderColor = PurplePrimary,
                                 unfocusedBorderColor = Color(0xFFE2E8F0)
                             )
@@ -1284,8 +1293,12 @@ fun SmsSignatureDialog(
                     onValueChange = { signatureText = it },
                     placeholder = { Text("e.g. Sent via Smart Messages", color = TextMuted) },
                     singleLine = true,
+                    textStyle = TextStyle(color = TextDark, fontSize = 14.sp),
                     shape = RoundedCornerShape(12.dp),
                     colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = TextDark,
+                        unfocusedTextColor = TextDark,
+                        cursorColor = PurplePrimary,
                         focusedBorderColor = PurplePrimary,
                         unfocusedBorderColor = Color(0xFFCBD5E1)
                     ),
