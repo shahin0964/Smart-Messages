@@ -24,6 +24,7 @@ import com.smartmessages.app.ui.screens.ConversationListScreen
 import com.smartmessages.app.ui.screens.NewMessageScreen
 import com.smartmessages.app.ui.theme.SmartMessagesTheme
 import com.smartmessages.app.util.PermissionHelper
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
@@ -85,7 +86,7 @@ fun SmartMessagesAppNav(
                 PermissionHelper.hasSmsPermission(context)
         if (smsGranted) {
             repository.startObserving()
-            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            scope.launch {
                 repository.loadConversations()
             }
         }
